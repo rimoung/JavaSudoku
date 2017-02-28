@@ -5,21 +5,21 @@ Python Sudoku Framework for a backtracking AI
 ### Modeling and Solving Sudoku as a CSP
 
 #### Contents
-- Introduction	2
-- Part 1: Sudoku	3
-  - Part 1.1: The Game of Sudoku	3
-  - Part 1.2: Creating Sudoku Puzzles	3
-  - Part 1.3 Modeling Sudoku using the CSP model	4
-- Part 2: Search with Backtracking	6
-  - Part 2.1: Using BTSolver	6
-  - Part 2.2: The Trail	6
-  - Part 2.3: To Do List for BTSolver	6
-- Part 3: Local Search	7
-  - Part 3.1: Using LocalSolver	7
-  - Part 3.2: Components of a local solver	8
-  - Part 3.3: Potential Local Search Formulation for Sudoku	8
-  - Part 3.4 To Do List for LocalSolver	9
-- References	10
+- Introduction
+- Part 1: Sudoku
+  - Part 1.1: The Game of Sudoku
+  - Part 1.2: Creating Sudoku Puzzles
+  - Part 1.3 Modeling Sudoku using the CSP model
+- Part 2: Search with Backtracking
+  - Part 2.1: Using BTSolver
+  - Part 2.2: The Trail
+  - Part 2.3: To Do List for BTSolver
+- Part 3: Local Search
+  - Part 3.1: Using LocalSolver
+  - Part 3.2: Components of a local solver
+  - Part 3.3: Potential Local Search Formulation for Sudoku
+  - Part 3.4 To Do List for LocalSolver
+- References
 
 
 #### Introduction
