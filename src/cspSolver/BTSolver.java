@@ -165,7 +165,17 @@ public class BTSolver implements Runnable{
 	 */
 	private boolean forwardChecking()
 	{
-		return false;
+		for(Variable v: network.getVariables()) {
+			if(v.isAssigned()) {
+				for(Variable vOther: network.getNeighborsOfVariable(v)) {
+					vOther.removeValueFromDomain(v.getAssignment());
+					if(vOther.getDomain().isEmpty()) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
 	}
 	
 	/**
@@ -327,9 +337,50 @@ public class BTSolver implements Runnable{
 	/**
 	 * TODO: LCV heuristic
 	 */
+	private int getConstraintsOnVarWithValue(Variable v, Integer value) {
+		//the one that rules out the fewest values in the remaining variables
+		//do we need to deal with fc?
+		int LC = 0;
+		for(Constraint c: network.getConstraintsContainingVariable(v)) {
+			for(Variable var : c.vars) {
+				if(!var.isAssigned() && var != v) {
+					if(var.getDomain().getValues().contains(value)) {
+						LC++;
+					}
+				}
+			}
+		}		
+		return LC;
+	}
+	
 	public List<Integer> getValuesLCVOrder(Variable v)
 	{
-		return null;
+		HashMap<Integer, Integer> valuesToConstraints = new HashMap<Integer, Integer>();
+		for(Integer value : v.getDomain().getValues()) {
+			int numConstraintsOnValue = getConstraintsOnVarWithValue(v, value);
+			valuesToConstraints.put(value, numConstraintsOnValue);
+		}
+		
+		getSortedKeys(valuesToConstraints);
+		return getSortedKeys(valuesToConstraints);
+	}
+	
+	/*
+	 * Takes in a HashMap of the LCV 
+	 */
+	private List<Integer> getSortedKeys(HashMap<Integer,Integer> hm) {
+		List<Entry<Integer, Integer>> list = new LinkedList<Entry<Integer, Integer>>(hm.entrySet());
+		Collections.sort(list, new Comparator<Map.Entry<Integer, Integer>>() {
+			public int compare(Map.Entry<Integer, Integer> o1, Map.Entry<Integer, Integer> o2) {
+				return (o1.getValue()).compareTo(o2.getValue());
+			}
+		});
+		List<Integer> sortedKeys = new ArrayList<Integer>();
+		for(Iterator<Entry<Integer, Integer>> it = list.iterator(); it.hasNext();) {
+			Entry<Integer, Integer> e = it.next();
+			sortedKeys.add(e.getKey());
+		}
+		return sortedKeys;
 	}
 	/**
 	 * Called when solver finds a solution
@@ -338,6 +389,7 @@ public class BTSolver implements Runnable{
 	{
 		hasSolution = true;
 		sudokuGrid = Converter.ConstraintNetworkToSudokuFile(network, sudokuGrid.getN(), sudokuGrid.getP(), sudokuGrid.getQ());
+		status = "success";
 	}
 
 	//===============================================================================
@@ -428,6 +480,8 @@ public class BTSolver implements Runnable{
 
 	@Override
 	public void run() {
+		status = "";
 		solve();
+		//solverStats(System.currentTimeMillis(), getStatus());
 	}
 }
