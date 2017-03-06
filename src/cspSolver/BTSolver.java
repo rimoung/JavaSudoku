@@ -217,18 +217,71 @@ public class BTSolver implements Runnable{
 	 * TODO: Implement MRV heuristic
 	 * @return variable with minimum remaining values that isn't assigned, null if all variables are assigned. 
 	 */
-	private Variable getMRV()
+	private Variable getMRV()	//NOTE: this will be *useless* without some sort of consistency check enabled
 	{
-		return null;
+		//boolean print = false;
+		int minVals = 12; //arbitrary, anything >9 should be fine
+		Variable currentReturn = null;
+		for(Variable v: network.getVariables()){
+			if(!v.isAssigned()){
+				if(v.getDomain().isEmpty()){	//if any variable has no valid assignments, immediately return null, nothing can be valid here 
+					//System.out.println("NULL RETURNED");
+					return null;
+				}
+				if(v.getDomain().size() <= minVals && v.getDomain().size() > 1){	//second part of this if probably unnecessary, but let's just keep it safe
+					/*if(v.getDomain().size() == minVals){	//if same size domain, chooses the one with the highest degree
+						if(getDegree(v) > getDegree(currentReturn)){
+							currentReturn = v;
+							minVals = v.getDomain().size();
+							//System.out.println("SWITCHING BECAUSE OF DEGREE");
+						}
+					}
+					else{*/
+						currentReturn = v;
+						minVals = v.getDomain().size();			//TODO: use degree heuristic as tiebreaker, IF that's what we're supposed to do
+						//print = true;
+					//}
+				}
+			}
+		}
+		//if(print) System.out.println("NOW RETURNING" + currentReturn.getName() + " domainsize: " + currentReturn.getDomain().size());
+		return currentReturn;
+	}
+	private int getDegree(Variable v){	//same thing as degree heuristic below, but gets the degree of a specific variable
+		int constraints = 0;
+		for(Variable n : network.getNeighborsOfVariable(v)){
+			if(!n.isAssigned()){
+				constraints++;
+			}
+		}
+		System.out.println("SOLVING WITH: " + constraints);
+		return constraints;
 	}
 	
 	/**
 	 * TODO: Implement Degree heuristic
 	 * @return variable constrained by the most unassigned variables, null if all variables are assigned.
 	 */
-	private Variable getDegree()
+	private Variable getDegree()  //ok, degree definitely works like this, but using *just* degree makes this impossible to solve in time limit
 	{
-		return null;
+		int constraints = 0, maxConstraints = -1;
+		Variable returnValue = null;
+		boolean print = false;
+		for(Variable v: network.getVariables()){
+			if(!v.isAssigned()){
+				constraints = 0;
+				for(Variable n : network.getNeighborsOfVariable(v)){
+					if(!n.isAssigned()) constraints++;
+				}
+				if(constraints >= maxConstraints){
+					maxConstraints = constraints;
+					returnValue = v;
+					print = true;
+				}
+			}
+		}
+		//System.out.println("NOW RETURNING" + returnValue.getName() + " constraints: " + maxConstraints);
+		return returnValue;
 	}
 	
 	/**
