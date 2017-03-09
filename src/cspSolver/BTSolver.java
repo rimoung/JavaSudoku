@@ -31,9 +31,9 @@ public class BTSolver implements Runnable{
 	private long startTime;
 	private long endTime;
 	
-	public enum VariableSelectionHeuristic 	{ None, MinimumRemainingValue, Degree };
+	public enum VariableSelectionHeuristic 	{ None, MinimumRemainingValue, Degree, MRVTieBreak };
 	public enum ValueSelectionHeuristic 		{ None, LeastConstrainingValue };
-	public enum ConsistencyCheck				{ None, ForwardChecking, ArcConsistency, NakedPair };
+	public enum ConsistencyCheck				{ None, ForwardChecking, ArcConsistency, NakedPair, NakedTriple };
 	
 	private VariableSelectionHeuristic varHeuristics;
 	private ValueSelectionHeuristic valHeuristics;
@@ -231,6 +231,14 @@ public class BTSolver implements Runnable{
 		return true;
 	}
 	/**
+	 * TODO: Implement Naked Triples
+	 * @return true if culling naked pairs doesn't result in inconsistencies, false if graph becomes inconsistent
+	 */
+	private boolean nakedTriple(){
+		//don't actually run this like that, it'll break everything
+		return true;
+	}
+	/**
 	 * Selects the next variable to check.
 	 * @return next variable to check. null if there are no more variables to check. 
 	 */
@@ -241,7 +249,9 @@ public class BTSolver implements Runnable{
 		{
 		case None: 					next = getfirstUnassignedVariable();
 		break;
-		case MinimumRemainingValue: next = getMRV();
+		case MinimumRemainingValue: next = getMRV(false);
+		break;
+		case MRVTieBreak: next = getMRV(true);
 		break;
 		case Degree:				next = getDegree();
 		break;
@@ -271,7 +281,7 @@ public class BTSolver implements Runnable{
 	 * TODO: Implement MRV heuristic
 	 * @return variable with minimum remaining values that isn't assigned, null if all variables are assigned. 
 	 */
-	private Variable getMRV()	//NOTE: this will be *useless* without some sort of consistency check enabled
+	private Variable getMRV(boolean tiebreak)
 	{
 		//boolean print = false;
 		int minVals = 999999; //arbitrary
@@ -283,18 +293,18 @@ public class BTSolver implements Runnable{
 					return null;
 				}
 				if(v.getDomain().size() <= minVals && v.getDomain().size() > 1){	//second part of this if probably unnecessary, but let's just keep it safe
-					/*if(v.getDomain().size() == minVals){	//TODO: rework this to be a toggle, if "tiebreaker" = true
+					if(tiebreak && v.getDomain().size() == minVals){				//tiebreaker clause using degree 
 						if(getDegree(v) > getDegree(currentReturn)){
-							currentReturn = v;
-							minVals = v.getDomain().size();
-							//System.out.println("SWITCHING BECAUSE OF DEGREE");
+							//currentReturn = v;
+							//minVals = v.getDomain().size();
+							System.out.println("tiebreaker, value unchanged");
 						}
 					}
-					else{*/
+					else{
 						currentReturn = v;
-						minVals = v.getDomain().size();			//TODO: use degree heuristic as tiebreaker, IF that's what we're supposed to do
+						minVals = v.getDomain().size();
 						//print = true;
-					//}
+					}
 				}
 			}
 		}
@@ -308,7 +318,7 @@ public class BTSolver implements Runnable{
 				constraints++;
 			}
 		}
-		System.out.println("SOLVING WITH: " + constraints);
+		//System.out.println("SOLVING WITH: " + constraints);
 		return constraints;
 	}
 	
