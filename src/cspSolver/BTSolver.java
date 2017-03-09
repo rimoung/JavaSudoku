@@ -1,7 +1,13 @@
 package cspSolver;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import sudoku.Converter;
 import sudoku.SudokuFile;
@@ -27,7 +33,7 @@ public class BTSolver implements Runnable{
 	
 	public enum VariableSelectionHeuristic 	{ None, MinimumRemainingValue, Degree };
 	public enum ValueSelectionHeuristic 		{ None, LeastConstrainingValue };
-	public enum ConsistencyCheck				{ None, ForwardChecking, ArcConsistency };
+	public enum ConsistencyCheck				{ None, ForwardChecking, ArcConsistency, NakedPair };
 	
 	private VariableSelectionHeuristic varHeuristics;
 	private ValueSelectionHeuristic valHeuristics;
@@ -132,6 +138,8 @@ public class BTSolver implements Runnable{
 		break;
 		case ArcConsistency: 	isConsistent = arcConsistency();
 		break;
+		case NakedPair:			isConsistent = nakedPair();	
+		break;
 		default: 				isConsistent = assignmentsCheck();
 		break;
 		}
@@ -185,7 +193,43 @@ public class BTSolver implements Runnable{
 	{
 		return false;
 	}
-	
+	/**
+	 * TODO: Implement Naked Pairs
+	 * @return true if culling naked pairs doesn't result in inconsistencies, false if graph becomes inconsistent
+	 */
+	private boolean nakedPair(){
+		System.out.println("NAKED PAIRS");
+		if(forwardChecking() == false) return false;
+		ArrayList<Variable> checkedVars = new ArrayList<Variable>();	//list of tuples that have already been checked in this consistency check
+		for(Variable v: network.getVariables()) {
+			if(!v.isAssigned() && !checkedVars.contains(v) && v.getDomain().size() == 2) {														//if you've found an unassigned and unchecked pair
+				for(Variable pair : network.getNeighborsOfVariable(v)){																			//look through the neighbors of this pair
+					if(!pair.isAssigned() && pair.getDomain().size() == 2 && pair.getDomain().getValues().equals(v.getDomain().getValues())){	//if you've found a matching pair
+						checkedVars.add(pair);														//add both parts of pair to the checked list, won't check them again this run
+						checkedVars.add(v);
+						int one = v.getDomain().getValues().get(0);									//get values of this pair
+						int two = v.getDomain().getValues().get(1);
+						for(Constraint c : network.getConstraintsContainingVariable(v)){			//get all constraints of first pair
+							for(Constraint d : network.getConstraintsContainingVariable(pair)){		//get all constraints of second pair
+								if(c==d){															//find constraints in common (at most two it would seem)
+									for(Variable otherChecker: c.vars){								//look through all variables except "v" and "pair", removing all instances of these pairs' variables
+										if(!otherChecker.equals(v) && !otherChecker.equals(pair)){
+											otherChecker.getDomain().remove(one);
+											otherChecker.getDomain().remove(two);
+											if(otherChecker.getDomain().isEmpty()){
+												return false;
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return true;
+	}
 	/**
 	 * Selects the next variable to check.
 	 * @return next variable to check. null if there are no more variables to check. 
@@ -230,7 +274,7 @@ public class BTSolver implements Runnable{
 	private Variable getMRV()	//NOTE: this will be *useless* without some sort of consistency check enabled
 	{
 		//boolean print = false;
-		int minVals = 12; //arbitrary, anything >9 should be fine
+		int minVals = 999999; //arbitrary
 		Variable currentReturn = null;
 		for(Variable v: network.getVariables()){
 			if(!v.isAssigned()){
@@ -239,7 +283,7 @@ public class BTSolver implements Runnable{
 					return null;
 				}
 				if(v.getDomain().size() <= minVals && v.getDomain().size() > 1){	//second part of this if probably unnecessary, but let's just keep it safe
-					/*if(v.getDomain().size() == minVals){	//if same size domain, chooses the one with the highest degree
+					/*if(v.getDomain().size() == minVals){	//TODO: rework this to be a toggle, if "tiebreaker" = true
 						if(getDegree(v) > getDegree(currentReturn)){
 							currentReturn = v;
 							minVals = v.getDomain().size();
@@ -272,7 +316,7 @@ public class BTSolver implements Runnable{
 	 * TODO: Implement Degree heuristic
 	 * @return variable constrained by the most unassigned variables, null if all variables are assigned.
 	 */
-	private Variable getDegree()  //ok, degree definitely works like this, but using *just* degree makes this impossible to solve in time limit
+	private Variable getDegree()  //TODO: implement "inverse degree" heuristic, selecting the variable with the *lowest* degree is more helpful for sudoku
 	{
 		int constraints = 0, maxConstraints = -1;
 		Variable returnValue = null;
@@ -389,7 +433,7 @@ public class BTSolver implements Runnable{
 	{
 		hasSolution = true;
 		sudokuGrid = Converter.ConstraintNetworkToSudokuFile(network, sudokuGrid.getN(), sudokuGrid.getP(), sudokuGrid.getQ());
-		status = "success";
+		//status = "success";
 	}
 
 	//===============================================================================
@@ -480,7 +524,7 @@ public class BTSolver implements Runnable{
 
 	@Override
 	public void run() {
-		status = "";
+		//status = "";
 		solve();
 		//solverStats(System.currentTimeMillis(), getStatus());
 	}
