@@ -191,7 +191,27 @@ public class BTSolver implements Runnable{
 	 */
 	private boolean arcConsistency()
 	{
-		return false;
+		Queue<Variable> varWithDomain1 = new LinkedList<Variable>();
+		for (Variable v: network.getVariables()){
+			if (v.getDomain().size() == 1){
+				varWithDomain1.add(v);
+			}
+		}
+		while(!varWithDomain1.isEmpty()){
+			Variable var = varWithDomain1.remove();
+			for (Variable varOther: network.getNeighborsOfVariable(var)){
+				varOther.removeValueFromDomain(var.getAssignment());
+				if(varOther.getDomain().size() == 1){
+					varWithDomain1.add(varOther);
+				}
+				if (varOther.getDomain().isEmpty()){
+					return false;
+				}			
+
+			}
+		
+		}
+		return true;
 	}
 	/**
 	 * TODO: Implement Naked Pairs
