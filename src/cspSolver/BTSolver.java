@@ -1,7 +1,13 @@
 package cspSolver;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import sudoku.Converter;
 import sudoku.SudokuFile;
@@ -25,9 +31,9 @@ public class BTSolver implements Runnable{
 	private long startTime;
 	private long endTime;
 	
-	public enum VariableSelectionHeuristic 	{ None, MinimumRemainingValue, Degree };
+	public enum VariableSelectionHeuristic 	{ None, MinimumRemainingValue, Degree, MRVTieBreak };
 	public enum ValueSelectionHeuristic 		{ None, LeastConstrainingValue };
-	public enum ConsistencyCheck				{ None, ForwardChecking, ArcConsistency };
+	public enum ConsistencyCheck				{ None, ForwardChecking, ArcConsistency, NakedPair, NakedTriple };
 	
 	private VariableSelectionHeuristic varHeuristics;
 	private ValueSelectionHeuristic valHeuristics;
@@ -132,6 +138,8 @@ public class BTSolver implements Runnable{
 		break;
 		case ArcConsistency: 	isConsistent = arcConsistency();
 		break;
+		case NakedPair:			isConsistent = nakedPair();	
+		break;
 		default: 				isConsistent = assignmentsCheck();
 		break;
 		}
@@ -165,7 +173,17 @@ public class BTSolver implements Runnable{
 	 */
 	private boolean forwardChecking()
 	{
-		return false;
+		for(Variable v: network.getVariables()) {
+			if(v.isAssigned()) {
+				for(Variable vOther: network.getNeighborsOfVariable(v)) {
+					vOther.removeValueFromDomain(v.getAssignment());
+					if(vOther.getDomain().isEmpty()) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
 	}
 	
 	/**
@@ -173,9 +191,73 @@ public class BTSolver implements Runnable{
 	 */
 	private boolean arcConsistency()
 	{
-		return false;
+		Queue<Variable> varWithDomain1 = new LinkedList<Variable>();
+		for (Variable v: network.getVariables()){
+			if (v.getDomain().size() == 1){
+				varWithDomain1.add(v);
+			}
+		}
+		while(!varWithDomain1.isEmpty()){
+			Variable var = varWithDomain1.remove();
+			for (Variable varOther: network.getNeighborsOfVariable(var)){
+				varOther.removeValueFromDomain(var.getAssignment());
+				if(varOther.getDomain().size() == 1){
+					varWithDomain1.add(varOther);
+				}
+				if (varOther.getDomain().isEmpty()){
+					return false;
+				}			
+
+			}
+		
+		}
+		return true;
 	}
-	
+	/**
+	 * TODO: Implement Naked Pairs
+	 * @return true if culling naked pairs doesn't result in inconsistencies, false if graph becomes inconsistent
+	 */
+	private boolean nakedPair(){
+		System.out.println("NAKED PAIRS");
+		if(forwardChecking() == false) return false;
+		ArrayList<Variable> checkedVars = new ArrayList<Variable>();	//list of tuples that have already been checked in this consistency check
+		for(Variable v: network.getVariables()) {
+			if(!v.isAssigned() && !checkedVars.contains(v) && v.getDomain().size() == 2) {														//if you've found an unassigned and unchecked pair
+				for(Variable pair : network.getNeighborsOfVariable(v)){																			//look through the neighbors of this pair
+					if(!pair.isAssigned() && pair.getDomain().size() == 2 && pair.getDomain().getValues().equals(v.getDomain().getValues())){	//if you've found a matching pair
+						checkedVars.add(pair);														//add both parts of pair to the checked list, won't check them again this run
+						checkedVars.add(v);
+						int one = v.getDomain().getValues().get(0);									//get values of this pair
+						int two = v.getDomain().getValues().get(1);
+						for(Constraint c : network.getConstraintsContainingVariable(v)){			//get all constraints of first pair
+							for(Constraint d : network.getConstraintsContainingVariable(pair)){		//get all constraints of second pair
+								if(c==d){															//find constraints in common (at most two it would seem)
+									for(Variable otherChecker: c.vars){								//look through all variables except "v" and "pair", removing all instances of these pairs' variables
+										if(!otherChecker.equals(v) && !otherChecker.equals(pair)){
+											otherChecker.getDomain().remove(one);
+											otherChecker.getDomain().remove(two);
+											if(otherChecker.getDomain().isEmpty()){
+												return false;
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return true;
+	}
+	/**
+	 * TODO: Implement Naked Triples
+	 * @return true if culling naked pairs doesn't result in inconsistencies, false if graph becomes inconsistent
+	 */
+	private boolean nakedTriple(){
+		//don't actually run this like that, it'll break everything
+		return true;
+	}
 	/**
 	 * Selects the next variable to check.
 	 * @return next variable to check. null if there are no more variables to check. 
@@ -187,7 +269,9 @@ public class BTSolver implements Runnable{
 		{
 		case None: 					next = getfirstUnassignedVariable();
 		break;
-		case MinimumRemainingValue: next = getMRV();
+		case MinimumRemainingValue: next = getMRV(false);
+		break;
+		case MRVTieBreak: next = getMRV(true);
 		break;
 		case Degree:				next = getDegree();
 		break;
@@ -217,18 +301,71 @@ public class BTSolver implements Runnable{
 	 * TODO: Implement MRV heuristic
 	 * @return variable with minimum remaining values that isn't assigned, null if all variables are assigned. 
 	 */
-	private Variable getMRV()
+	private Variable getMRV(boolean tiebreak)
 	{
-		return null;
+		//boolean print = false;
+		int minVals = 999999; //arbitrary
+		Variable currentReturn = null;
+		for(Variable v: network.getVariables()){
+			if(!v.isAssigned()){
+				if(v.getDomain().isEmpty()){	//if any variable has no valid assignments, immediately return null, nothing can be valid here 
+					//System.out.println("NULL RETURNED");
+					return null;
+				}
+				if(v.getDomain().size() <= minVals && v.getDomain().size() > 1){	//second part of this if probably unnecessary, but let's just keep it safe
+					if(tiebreak && v.getDomain().size() == minVals){				//tiebreaker clause using degree 
+						if(getDegree(v) > getDegree(currentReturn)){
+							//currentReturn = v;
+							//minVals = v.getDomain().size();
+							System.out.println("tiebreaker, value unchanged");
+						}
+					}
+					else{
+						currentReturn = v;
+						minVals = v.getDomain().size();
+						//print = true;
+					}
+				}
+			}
+		}
+		//if(print) System.out.println("NOW RETURNING" + currentReturn.getName() + " domainsize: " + currentReturn.getDomain().size());
+		return currentReturn;
+	}
+	private int getDegree(Variable v){	//same thing as degree heuristic below, but gets the degree of a specific variable
+		int constraints = 0;
+		for(Variable n : network.getNeighborsOfVariable(v)){
+			if(!n.isAssigned()){
+				constraints++;
+			}
+		}
+		//System.out.println("SOLVING WITH: " + constraints);
+		return constraints;
 	}
 	
 	/**
 	 * TODO: Implement Degree heuristic
 	 * @return variable constrained by the most unassigned variables, null if all variables are assigned.
 	 */
-	private Variable getDegree()
+	private Variable getDegree()  //TODO: implement "inverse degree" heuristic, selecting the variable with the *lowest* degree is more helpful for sudoku
 	{
-		return null;
+		int constraints = 0, maxConstraints = -1;
+		Variable returnValue = null;
+		boolean print = false;
+		for(Variable v: network.getVariables()){
+			if(!v.isAssigned()){
+				constraints = 0;
+				for(Variable n : network.getNeighborsOfVariable(v)){
+					if(!n.isAssigned()) constraints++;
+				}
+				if(constraints >= maxConstraints){
+					maxConstraints = constraints;
+					returnValue = v;
+					print = true;
+				}
+			}
+		}
+		//System.out.println("NOW RETURNING" + returnValue.getName() + " constraints: " + maxConstraints);
+		return returnValue;
 	}
 	
 	/**
@@ -274,9 +411,50 @@ public class BTSolver implements Runnable{
 	/**
 	 * TODO: LCV heuristic
 	 */
+	private int getConstraintsOnVarWithValue(Variable v, Integer value) {
+		//the one that rules out the fewest values in the remaining variables
+		//do we need to deal with fc?
+		int LC = 0;
+		for(Constraint c: network.getConstraintsContainingVariable(v)) {
+			for(Variable var : c.vars) {
+				if(!var.isAssigned() && var != v) {
+					if(var.getDomain().getValues().contains(value)) {
+						LC++;
+					}
+				}
+			}
+		}		
+		return LC;
+	}
+	
 	public List<Integer> getValuesLCVOrder(Variable v)
 	{
-		return null;
+		HashMap<Integer, Integer> valuesToConstraints = new HashMap<Integer, Integer>();
+		for(Integer value : v.getDomain().getValues()) {
+			int numConstraintsOnValue = getConstraintsOnVarWithValue(v, value);
+			valuesToConstraints.put(value, numConstraintsOnValue);
+		}
+		
+		getSortedKeys(valuesToConstraints);
+		return getSortedKeys(valuesToConstraints);
+	}
+	
+	/*
+	 * Takes in a HashMap of the LCV 
+	 */
+	private List<Integer> getSortedKeys(HashMap<Integer,Integer> hm) {
+		List<Entry<Integer, Integer>> list = new LinkedList<Entry<Integer, Integer>>(hm.entrySet());
+		Collections.sort(list, new Comparator<Map.Entry<Integer, Integer>>() {
+			public int compare(Map.Entry<Integer, Integer> o1, Map.Entry<Integer, Integer> o2) {
+				return (o1.getValue()).compareTo(o2.getValue());
+			}
+		});
+		List<Integer> sortedKeys = new ArrayList<Integer>();
+		for(Iterator<Entry<Integer, Integer>> it = list.iterator(); it.hasNext();) {
+			Entry<Integer, Integer> e = it.next();
+			sortedKeys.add(e.getKey());
+		}
+		return sortedKeys;
 	}
 	/**
 	 * Called when solver finds a solution
@@ -285,6 +463,7 @@ public class BTSolver implements Runnable{
 	{
 		hasSolution = true;
 		sudokuGrid = Converter.ConstraintNetworkToSudokuFile(network, sudokuGrid.getN(), sudokuGrid.getP(), sudokuGrid.getQ());
+		//status = "success";
 	}
 
 	//===============================================================================
@@ -375,6 +554,8 @@ public class BTSolver implements Runnable{
 
 	@Override
 	public void run() {
+		//status = "";
 		solve();
+		//solverStats(System.currentTimeMillis(), getStatus());
 	}
 }

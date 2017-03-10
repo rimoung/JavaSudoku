@@ -119,7 +119,7 @@ public class Converter {
 		int row = 0, col = 0;
 		for(Variable v : cn.getVariables())
 		{
-			board[row++][col] = v.getAssignment();
+			board[col][row++] = v.getAssignment();
 			if(row == n)
 			{
 				row = 0;
