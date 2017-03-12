@@ -139,10 +139,6 @@ public class BTSolver implements Runnable{
 		break;
 		case ArcConsistency: 	isConsistent = arcConsistency();
 		break;
-                case NakedPairs:    isConsistent = nakedPairs();
-                break;
-                case NakedTriples:    isConsistent = nakedTriples();
-                break;
 		default: 				isConsistent = assignmentsCheck();
 		break;
 		}
