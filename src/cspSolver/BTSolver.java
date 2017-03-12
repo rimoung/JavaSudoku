@@ -152,7 +152,7 @@ public class BTSolver implements Runnable{
 	private boolean checkNakedConsistency()
 	{
 		boolean isConsistent = false;
-		switch(nChecks)
+		switch(nCheck)
 		{
 		case None: 				isConsistent = true;
 		break;
